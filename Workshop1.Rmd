@@ -1,0 +1,380 @@
+---
+title: 'Workshop 1: Descriptive and predictive modeling with linear regression'
+author:  'Bhanu Prasad Tudy'
+date: "1/16/2020"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+```{r, include=FALSE}
+knitr::opts_chunk$set(
+	echo = TRUE,
+	fig.height = 3,
+	fig.width = 4,
+	message = FALSE,
+	comment = NA,error=TRUE
+)
+#uncomment the line below if using an external R script for R chunks
+#knitr::read_chunk("Workshop1.R")
+```
+
+
+# Workshop description
+* Understand and predict user popularity on an online dating site
+    + Popularity might be related to the user’s attributes
+    + Popularity measured by the number of unsolicited e-mails received
+* Use data in Dating-Women.csv, available on Canvas: 
+
+
+| Variable      | Description                                         |
+| --------------|-----------------------------------------------------|
+| `emails`      | Number of first-contact e-mails received            |
+| `rating`      | Looks rating of user’s picture                      |
+| `height`      | Height (in inches)                                  |
+| `bmi`         | Body mass index (BMI)                               | 
+| `education`   | Years of education                                  |
+| `age`         | Age group: 1 = 31-35 yr, 2 = 36-40 yr, 3 = 41-45 yr |
+| `days_active` | Days user was active on site during study           |
+
+## Workshop task workflow
+1. Setup: Download data, RStudio intro
+2. Descriptive analysis
+    1) Data summary tables: 1) `summary()`, 2) `describe()`, 3) `cor()`
+    2) Data visualization:  1) `hist()`, 2) `plot()`
+3. Model building
+    1) Single regression 
+    2) Multiple regression
+    3) Categorical regressors
+    4) Interactions
+
+
+# 1. Setup
+
+## Tasks 1-5: Download data/script files and launch RStudio
+
+1. Create a new file folder for the workshop on your laptop computer
+2. Download the file “Dating-Women.csv” from Canvas to your working directory
+3. Download the file “Workshop1.Rmd” from Canvas to your working directory
+4. Launch R studio and change to the working directory:
+    + RStudio menu bar:  Session  --> Set Working Directory --> Choose Directory...
+    + Console: `setwd("path_to_your_working_directory")`
+5. Open the R notebook file `Workshop1.Rmd`
+    + RStudio menu bar:  File → Open file
+    + Scan through the document to see syntax
+    + Press the **Knit** button to generate the output document
+    
+As you scroll through `Workshop1.Rmd`, note that lines 1-8 contain document metadata (title, output format, etc.).  The R code chunk in lines 9-19 sets the default behavior for R code chunks.
+
+## Task 6: Load data into RStudio
+
+6. Add R code to:
+    i) load “Dating-Women.csv” into data frame `women_DF`, and 
+    ii) print the first 6 rows of data
+ 
+The relevant code chunk begins around line 79.  After completing, press the Knit button to re-generate the output document.
+
+The code produces the following output:
+
+```{r code_1.6}
+women_DF <- read.csv("Dating-Women.csv")
+head(women_DF)
+```
+
+* The data set is now in memory and called `women_DF`. 
+    + After loading the data, RStudio will display the variable names in the *Environment* window pane
+    + You can also list all data and variables in memory by typing the `ls()` command in the console window
+
+# 2. Descriptive analysis
+    
+## Step 2.1.1: Summarize using summary() 
+* Next, we summarize the data frame `women_DF` using the built-in function `summary()`:
+
+```{r code_2.1.1}
+summary(women_DF)
+```
+
+## Step 2.1.2: Summarize using describe()
+* The `summary` function in base R does not show the number of observations and standard deviation of each variable
+    + A convenient alternative to `summary` that includes these statistics is `describe` in the `psych` package
+* If you have not already done so, install the `psych` package
+    + Console: install.packages("psych") or from Packages -> Install dialog
+* Recall that you must also call `library(psych)` to load the package into memory
+* Now use `describe()` to summarize `women_DF`:    
+```{r code_2.1.2}
+library(psych)
+describe(women_DF)
+```
+
+### Discussion
+* Based on the table above, how many observations do we have?
+* What is the average number of emails received?
+
+*TBD*
+
+## Step 2.1.3: Display raw correlations among variables
+* Often we want to know the extent of correlation among the variables
+    + A convenient function to display these correlations is `cor()`
+* Use `cor()` to summarize correlations in `women_DF`
+    + To improve readability, use `round()` to limit the display to 2 decimal places 
+```{r code_2.1.3}
+cor(women_DF)
+```
+
+### Discussion
+* Based on this table, which variables do you expect will be the strongest predictors of `emails`?  Why?
+
+*TBD*
+
+## Step 2.2.1: Summarize the emails variable using hist()
+* Histograms visually summarize the distribution of a variable
+    + Recall that you access a data frame variable as `data_frame_name$variable_name`
+    
+* Use the `hist()` function to look at the distribution of first-contact e-mails received among female site users
+    + Type "?hist" or use the help viewer to explore options to display histograms.  Then:
+    + Add a title to the histogram, "Histogram of first-contact e-mails received"
+    + Add a label to the x-axis, "E-Mails"
+    + Change the bar colors to "lightskyblue1"
+    + Finally, rescale the text and symbols to 65% of default, using the `cex` option of the `par()` function
+
+```{r code_2.2.1}
+par(cex=0.65)
+hist(women_DF$emails,main="Histogram of first-contact e-mails received",col="lightblue1",xlab="Emails")
+```
+
+## Step 2.2.2: Summarize the relationship between emails and rating using plot()
+* Scatterplots visually summarize the co-variation of two variables
+* Use the `plot()` function to explore the relationship of first-contact e-mails (Y) to looks rating (X)
+```{r code_2.2.2}
+par(cex=0.65)
+plot(women_DF$rating,women_DF$emails,pch=21,lwd=0.4)
+```
+
+### Discussion
+* What does this graph tell us about relationship between `emails` and `rating`? 
+* How is this more informative than a simple correlation?
+
+*TBD*
+
+## Step 2.3: Save R graphics to disk
+
+* Often we want to save R-generated graphics to separate image files
+* Here I demonstrate a method to save R graphics to pdf files.  The "trick" is to enclose the code that generates the graphics with two statements:
+    + BEFORE the graphics code, insert a `pdf()` statement to open a pdf output file, e.g. `pdf(file="your_filename_here.pdf")`
+    + AFTER the graphics code, insert a `dev.off()` statement to close the pdf output file
+
+NOTE: The above procedure sends graphics output straight to disk (without displaying in R Studio or the output of R Markdown files).  In order to visually display graphics *and* save them to disk, the graphics code must be repeated twice.
+
+Also note that we can verify the existence of a file in R using the function call `file.exists("filename_to_check")`.
+
+Use the method above to save the plot from Step 2.2.2 to a pdf file named `men_emails_vs_looks.pdf` and verify that it has been saved to disk:
+
+```{r code_2.3}
+pdf(file="men_emails_vs_looks.pdf")
+dev.off()
+file.exists("men_emails_vs_looks.pdf")
+```
+
+
+# 3. Model building with linear regression
+
+## 3.1 Single regression
+* Linear regression in R is performed using the `lm(model,options)` command
+    + `lm` stands for "linear model" 
+* The regression model to be estimated is specified in the model formula: `emails ~ rating`
+* The formula indicates the dependent variable `emails` (Y) should be regressed on the indepdent variable `rating` (X).
+
+In general, model formulas have the form
+
+> `y ~ x1 + x2 + x3`,
+
+indicating that the variable `y` should be regressed on `x1`, `x2`, and `x3`. Of course you can add any number of additional independent variables to the right-hand side of the formula. Note that by default the regression model will include an intercept (constant) term; there is no need to specifically instruct R to include a constant in the regression.  You can remove the intercept by specifying `-1` as a regressor.
+
+A useful option for lm is `data = <dataframe>`.  Variable names may then be used in short form, i.e., `emails` versus `women_DF$emails`.
+
+Now let's run our first regression to examine the exact relationship between the looks `rating` and `emails` received, and store the regression results to an object (a list of lists) named `lm_fit_1`.  Use the `summary()` function to display the regression results:
+
+```{r code_3.1.1} 
+lm_fit_1 <- (lm(emails~rating, data= women_DF))
+summary(lm_fit_1)
+```
+### Discussion
+* What is the interpretation of:
+    + The `rating` variable coefficient estimate?
+    + The `intercept` estimate?
+    + The regression R^2^ 
+    + The regression F-statistic?
+* What does the `Std. Error` measure?
+* What is the `t value` and what does it's p-value (Pr(>|t|)) mean?
+* What do we conclude about the relationship between `emails` and `rating`?
+
+*TBD*
+
+Before we proceed, let's see how the model fit is.  Add a regression line to the scatter plot we created above using the function `abline()`.  Note that a valid syntax is to call `abline()` with a `lm()` regression output, as in `abline(lm_fit_1)`:
+```{r code_3.1.2}
+plot(women_DF$rating,women_DF$emails,col="red")
+abline(lm_fit_1)
+```  
+
+
+## 3.2.1 Multiple regression -- two regressors
+
+Our data set contains several variables that could all have predictive power for the number of first-contact e-mails that a site user received. So far we only used the looks rating variable. Multiple regression analysis allows us to estimate the relationship between several independent variables and the dependent variable. In particular, we can estimate the relationship between the outcome and a dependent variable (such as looks), controlling for the effect of the other independent variables such as `height`, `bmi`, or `yrs_education` on the outcome. 
+
+To illustrate, add the body mass index variable (`bmi`) to the regression, and name the result `lm_fit_2`:
+
+```{r code_3.2.1}
+lm_fit_2 <- lm(emails~rating+ bmi,data= women_DF)
+summary(lm_fit_2)
+```
+
+### Discussion
+* What does the regression indicate about the relationship between `emails` and `bmi`?
+* How has the coefficient estimate for `rating` changed? Why?
+
+*TBD*
+
+## 3.2.2 Multiple regression -- all interval-scale variables
+
+Next, we include all variables in the regression apart from `age` (we will look at the `age` variable in more detail below), and store the result in `lm_fit_3`:
+```{r code_3.2.2}
+lm_fit_3 <- lm(emails~rating+height+bmi+yrs_education + days_active,data=women_DF)
+summary(lm_fit_3)
+```
+### Discussion
+* Interpret the F statistic from this model
+* Compare the three regression models we have estimated on the basis of their R^2^ and Adjusted R^2^ values. Which model would you select?
+
+
+*TBD*
+
+## 3.3 Categorical regressors
+
+Categorical variables are variables that can only be represented on a nominal scale, such as gender or location. Consider the example of gender, which might take the values "female" or "male" in a paricular dataset. Comparisons such as "female is more than male," or "male is three times as much as female" are meaningless. In contrast, other variables can be measured on an interval scale. Consider income. For such a variable the comparisons "my income is lower than yours" or "my income is 50 percent higher than yours" or "you make 50,000 dollars more than me" are meaningful.
+
+In the online dating example, we do not know the exact age of a user, but only one of the age categories that the user belongs to. The `age` variable takes one of the values 1, 2, and 3, and is coded as follows:
+
+* 1 = 31-35 years
+* 2 = 36-40 years
+* 3 = 41-45 years
+
+Including a categorical variable such as `age` directly in the regression does not make sense. Such a specification would assume that the difference in e-mails received between users of age 41-45 and 36-40 is the same as the difference between users of age 36-40 and 31-35. However, users in age category 2 might receive more e-mails than users in categories 1 and 3, in particular if most site users are in category 2 and typically send e-mails to a potential mate similar to their own age.
+
+Instead, categorical variables are included in the regression as *dummy variables*, also called *indicator variables*. 
+
+Indicator variables capture if an observation corresponds to a particular category or not. If there are only two categories, the dummy variable takes the value 0 for one category (for example "male"), and 1 for the other category ("female").
+
+If there are more than two categories, $M>2$, we can define $M$ indicator variables, one for each of the $M$ categories. In our example we have three age categories, $M=3$. Let's create a dummy variable that equals 1 if an observation belongs to age category 2:
+
+```{r}
+# remove comments below when you get to this point
+women_DF$age_2 = (women_DF$age == 2)
+head(women_DF)
+```
+
+Let's analyze this R code. The expression `women_DF$age == 2` analyzes if a value in the age column in the data frame `women_DF` is equal to 2. If true, the expression returns the value `TRUE`, otherwise the return value is `FALSE`. These values are then assigned to the new column `age_2` in the data frame `women_DF`. `TRUE` and `FALSE` are logical values. In order to create 0 and 1 numbers instead of logical values we modify our code as follows:
+
+```{r}
+# remove comments below when you get to this point
+women_DF$age_2 = as.numeric(women_DF$age == 2)
+head(women_DF)
+```
+
+R now converts the logical values to numbers, 0 if `FALSE` and 1 if `TRUE`. Let's also create dummies for the other two age categories:
+
+```{r}
+# remove comments below when you get to this point
+women_DF$age_1 = as.numeric(women_DF$age == 1)
+women_DF$age_3 = as.numeric(women_DF$age == 3)
+head(women_DF)
+```
+
+
+Claim: If a variable takes values in $M$ categories, we only need $M-1$ dummy variables to completely describe the information in the original variable. In the example of `age`, the specific claim is that two dummies suffice to capture the original age information. To see this, suppose we only have access to the two dummies `age_2` and `age_3`. Can these two dummies tell us which of the three age categories an observation belongs to? Let's check. If a site user is in age category 2, then `age_2` will equal 1, and if the user is in age category 3 then `age_3` will be 1. If the site user is in age category 1, then both `age_2` and `age_3` will be 0 and we know the age category has to correspond to the omitted dummy, `age_1`. In general, if all $M-1$ dummies are 0, then an observation must belong to the omitted category.
+
+Because $M$ categories can be represented by $M-1$ dummies, including all $M$ dummies for a categorical variable would be redundant and the regression could not be run. So we need to exclude one of the dummies, and we call the corresponding category the *omitted or base category*. In our example, let's omit category 1 and include the dummies for age categories 2 and 3 from the regression of `emails`, and name the results `lm_fit_4`:
+
+```{r code_3.3.1}
+lm_fit_4 <- lm(emails ~ age_1 + age_3, data=  women_DF)
+summary(lm_fit_4)
+```
+
+### Discussion
+* Interpret the coefficients of the indicator variables from this regression
+
+*TBD*
+
+Now run the regression with a different age group, $age=2$, as base category, and name the result `lm_fit_5`:
+
+```{r code_3.3.2}
+lm_fit_5 <- lm(emails ~ age_2, data=  women_DF)
+summary(lm_fit_5)
+```
+
+### Discussion
+* Compare the results to the prior regression.  What patterns do you notice?
+* Verify that the difference in outcomes in age categories 1 and 3 are the same in both regressions
+
+*TBD*
+
+## Categorical regressors using factor()
+Here I introduce a quick and easy way of creating and adding dummy variables to a regression formula:
+
+```{r code_3.3.3}
+# remove comments below when you get to this point
+lm_fit_7 = lm(emails ~ rating + height + bmi
+            + yrs_education + days_active + factor(age), data = women_DF) 
+summary(lm_fit_7) 
+```
+
+
+Here, R creates a *factor* variable from `age`. Factors are used by R to represent categorical information. You see that R automatically excludes the dummy corresponding to the first age category from the regression model. This approach is extremely useful if you have a categorical variable with many values, because you don't have to manually create and add dummies for all (but one) categorical values.
+
+## 3.4 Interactions and non-linear regressors
+
+Finally, we explore models with interactions and non-linear regressors.
+
+Recall that in the R `lm()` command, we can indicate the interaction of two regressors using the `:` operator.  For example, a simple interaction model involing variables `x1` and  `x2` may be written as follows:
+
+> `y ~ x1 + x2 + x1:x2`
+
+Now estimate a model (name the results `lm_fit_8`) with:
+
+* Continuous variables `rating`, `height`, `bmi`, `yrs_education`, `days_active` 
+* Categorical/factor variable `age`
+* Interactions of factor variable `age` with `rating`
+ 
+```{r code_3.4.1}
+lm_fit_8 = lm(emails ~ rating + height + bmi
+             + yrs_education + days_active + factor(age) + factor(age):rating , data = women_DF) 
+summary(lm_fit_8)
+```
+
+### Discussion
+* Interpret the coefficients involving `age` and `rating`
+
+*TBD*
+
+
+Finally, we consider a model including non-linear regressors.  Suppose we want to include the square of `x1` as a regressor.  Such a model may be written as follows:
+
+> `y ~ x1 + x2 + I(x1^2)`,
+
+Note the use of the `I()` (insulate) operator, which is prevents R from trying to interpret `x1^2` as a variable name.
+
+Now estimate a model (name the results `lm_fit_9`) with:
+
+* Continuous variables `rating`, `height`, `bmi`, `yrs_education`, `days_active` 
+* Categorical/factor variable `age`
+* Non-linear (continuous) regressor `height`^2
+
+```{r code_3.4.2}
+lm_fit_9 = lm(emails ~ rating + height + bmi
+             + yrs_education + days_active + factor(age) + I(height^2) , data = women_DF) 
+summary(lm_fit_9)
+```
+
+* Interpret the coefficients involving `height`
+* Note that the inclusion of the squared term actually makes the height coefficient statistically significant, whereas it was not significant in previous models.  What might explain this?
+
+*TBD*

@@ -1,0 +1,239 @@
+---
+title: "Session 2 Workshop"
+subtitle: "Panel data models"
+author: "MSBX-5130: Customer Analytics"
+date: "1/23/2020"
+#output: word_document
+output: pdf_document
+---
+```{r, include=FALSE}
+knitr::opts_chunk$set(
+	echo = TRUE,
+	fig.height = 3,
+	fig.width = 4,
+	message = FALSE,
+	comment = NA
+)
+```
+# 1) Setup
+## In-class consulting project description
+* Construct a linear model of demand for a common packaged good (a soft drink)
+    + Effect of interest is the average effect of price on demand (units sold)
+    + Data is in panel (store, week) format
+* Estimate, interpret and compare models with
+    + Observable factors only
+    + Observable factors + time trends/fixed effects
+    + Observable factors + store fixed effects
+    + Observable factors + store fixed effects + time trends/fixed effects
+
+You have access to scanner data across 100 stores of a retail chain in the Atlanta metro region. The data are in the file `cola_data.csv`. The data include monthly sales and price information for RC Cola (12 pack of 12 oz cans) across the 100 stores. The data are available for 12 months. The variables in the data set are:
+
+-------------   -----------------------------------------------------
+`store`         Store id number
+`month`         Month (1= January, ..., 12 = December)
+`promo`         = 1 if any product in the category was on promotion
+`sales`         RC Cola 12-pack, 12-oz cans: unit sales
+`price`         RC Cola 12-pack, 12-oz cans: price ($)
+-------------   -----------------------------------------------------
+
+
+## Workshop task workflow
+1. Setup: Download data & R Markdown file
+2. Data description
+3. Model building
+    1. Observable factors only
+    2. Observable factors + time trends/time fixed effects
+    3. Observable factors + store fixed effects
+    4. Observable factors + store fixed effects + time trends/time fixed effects
+4. Model prediction    
+
+# 2) Data description
+
+## 2.1) First, read in the data from the csv file:
+
+```{r}
+workshop2 <- read.csv('cola_data.csv')
+head(workshop2)
+```
+
+## 2.2) Next, generate a simple scatterplot of sales vs. price:
+
+```{r}
+par(cex=0.65)
+plot(workshop2$price,workshop2$sales,pch=21,lwd=0.4)
+```
+
+*Discussion*:  Does this graph suggest a relationship between price and sales?  
+
+No clear relationship between price and sales can be found out from the scatter plot.
+
+
+# 3) Model building and comparison
+
+## 3.1) Estimate a linear model of sales as a function of price and promotion  
+```{r}
+lm_fit_1 <- (lm(sales~price+promo, data= workshop2))
+summary(lm_fit_1)
+```
+
+*Discussion*: 
+
+* Interpret the regression coefficients
+
+1 dollar price increases sales by 2.88 units and promotion increases sales by 10.97 units.
+
+* Does the estimated price coefficient make sense economically?  Why or why not?
+
+No as price increase should reduce sales not increase it.
+
+
+## 3.2) Estimate linear models of sales as a function of price, promotion and time controls
+
+### 3.2.1) Estimate a linear model of sales as a function of price, promotion and a linear time trend
+
+```{r}
+lm_fit_2 <- (lm(sales~price+promo+month, data= workshop2))
+summary(lm_fit_2)
+```
+
+*Discussion*: 
+
+* Interpret the `month` regression coefficient
+
+sales increase by 1.62 units with increament every new month.
+
+* Is there statistical evidence of a linear trend in sales?
+
+Yes. as each month there is a constant increament, we can say there is a linear trend.
+
+* Has the inclusion of a linear time trend "fixed" the sign of the price coefficient?  What does this mean?
+
+No. price still has positive effect on demand.
+
+### 3.2.2) Estimate the model with both linear and quadratic time trends
+
+```{r}
+lm_fit_3 <- (lm(sales~price+promo+month+I(month^2), data= workshop2))
+summary(lm_fit_3)
+```
+
+*Discussion*: 
+
+* Interpret the `month` regression coefficients
+
+For intepret, there is an addition of month*1.32 effect + month^2 has 0.02*month*month effect.
+
+* Is there statistical evidence of a quadratic trend in sales?  
+
+No. Quadratic teerm is insignificant.
+
+### 3.2.3) Estimate the model with time fixed effects instead of time trends
+
+```{r}
+lm_fit_4 <- (lm(sales~price+promo+factor(month), data= workshop2))
+summary(lm_fit_4)
+```
+
+*Discussion*: 
+
+* Interpret the intercept and time (month) fixed effects estimates
+
+There is seperate effect for each month.
+
+* Compare the results from this regression to the previous two models with time trends.  In particular, what do you notice about the coefficients for price and promotion?  What does this imply for the type of controls we need for unobserved time effects?  
+
+Linear trend is the only requirement.
+
+## 3.3) Estimate a linear model of sales as a function of price and promotion, controlling for unobserved store effects 
+
+### 3.3.1) Estimate a linear model of sales as a function of price and promotion, controlling for unobserved store effects *using dummy variables*
+```{r}
+lm_fit_5 <- (lm(sales~price+promo+factor(store), data= workshop2))
+summary(lm_fit_5)
+```
+
+*Discussion*: 
+
+* Interpret the intercept and store-specific regression coefficients
+
+*TBD*
+
+* Compare the results from this regression to the previous models.  In particular, what do you notice about the coefficient for price (e.g. does the sign make sense economically)?  What does this imply about the need to control for unobserved store effects?  
+
+*TBD*
+
+### 3.3.2) Now estimate the same model using the `plm()` function
+```{r}
+library(plm)
+model = plm(sales~price+promo, data=workshop2,index=c("store","month"),model="within",effect="individual")
+summary(model)
+```
+*Discussion*: 
+
+* Compare the results from this regression to the previous model.  In particular, what do you notice about the coefficients for price and promotion?  
+
+*TBD*
+
+## 3.4) Estimate linear models of sales as a function of price, promotion with controls for both store and time (month) unobservables
+
+### 3.4.1) Add a linear time trend to the model in 3.3.2 above
+
+*Hint: be sure plm() treats month as a number or integer instead of a factor variable -- e.g. use as.numeric() or similar as required.*
+
+```{r}
+library(plm)
+model = plm(sales~price+promo+as.numeric(month), data=workshop2,index=c("store","month"),model="within",effect="individual")
+summary(model)
+```
+
+
+* Is there statistical evidence of a linear trend in sales, after controlling for store fixed effects?
+
+*TBD*
+
+### 3.4.2) Estimate the model with time fixed effects instead of time trends
+
+```{r}
+
+model1 = plm(sales~price+promo+factor(month), data=workshop2,index=c("store","month"),model="within",effect="individual")
+summary(model1)
+```
+
+*Discussion*: 
+
+* Compare the results from this regression to the previous models.  In particular, what do you notice about the coefficients for price and promotion?  What does this imply for the type of controls we need for unobserved effects?  
+
+*TBD*
+
+
+# 4. Model prediction
+## 4.1 Using the model from section 1, predict sales for all in-sample observations using `precict()` and by hand using matrix algebra.  Compare your results and demonstrate these procedures give the same values
+
+*Hint: a convenient function to compare two lists of numbers is: all.equal(list1,list2,check.names=FALSE)*
+
+```{r}
+model3 =predict(lm_fit_1)
+X=model.matrix(sales~price+ promo, data=workshop2)
+model4= as.numeric(X %% lm_fit_1$coffecients)
+all.equal(model3,model4,check.names=FALSE)
+```
+
+## 4.2 Using the model from section 1, predict sales for out of sample predictors
+
+Using the model from section 1, predict sales, assuming the following values for `price` and `promo`:
+
+Case      Price     Promo
+-------   ------    -----
+1           1         0
+2           1         1
+3           5         0
+4           5         1
+-------   ------    -----
+
+List the predicted values.
+
+```{r}
+X= data.frame(price=c(1,1,5,5), promo=c(0,1,0,1))
+model5 = predict(lm_fit_1,newdata=X)
+model5
+```

@@ -1,0 +1,415 @@
+---
+title: "Workshop 3"
+subtitle: "Treatment effect estimation"
+author: "MSBX-5130: Customer Analytics"
+date: "1/30/2020"
+#output: word_document
+output: pdf_document
+---
+```{r, include=FALSE}
+knitr::opts_chunk$set(
+	echo = TRUE,
+	fig.height = 3,
+	fig.width = 4,
+	message = FALSE,
+	comment = NA
+)
+```
+
+# 1) Setup
+
+## Workshop description
+
+* We will calculate average treatment effects (ATEs) using two methods (and datasets):
+    + Using randomized control trial data (`RCT_data.csv`)
+    + Using observational panel data (`DiD_data.csv`)
+    
+## Workshop task workflow
+1. Setup 
+2. Average treatment effect (ATE) estimation with Randomized Controlled Trials (RCTs)
+    1. Summarize experiment 
+    2. Randomization checks
+    3. Basic ATE estimation
+    4. ROI calculation
+    5. Adding pre-treatment controls
+3. Average treatment effect (ATE) estimation with observational panel data
+    1. Basic Differences in Differences 
+    2. Differences in Differences with full panel controls
+    3. Prediction with plm() -- FOR YOUR INTEREST
+        1. plm() R^2^ with fixed effects
+
+# 2) Average treatment effect (ATE) estimation with Randomized Controlled Trials (RCTs)
+
+Here we will analyze the effectiveness of an online display ad campaign.
+
+
+Imagine you are the marketing manager at Nordsaksingdale’s, an apparel retailer.  You worked with an ad exchange to run an experiment to measure the effectiveness of an online display ad campaign.  The experiment was designed such that treated users saw the campaign ad, and control users saw a public service announcement (PSA).
+You must now analyze the resulting dataset: “RCT_data.csv” (Canvas). The data contain the following variables:  
+
+----------------   -----------------------------------------------------
+`treatment`        1 if user is in Treatment group & 0 if user is in Control group
+`sales`            Sales at the retailer in 2 weeks of campaign ($)
+`past_sales`       Sales at the retailer in 2 weeks prior to the campaign ($)
+`female`           1 if user is female, 0 otherwise
+----------------   -----------------------------------------------------
+
+
+
+## 2.1) Summarize experiment 
+
+### 2.1.1) Load the data from `RCT_data.csv` to a dataframe called `RCT_DF`
+
+```{r}
+RCT_DF <- read.csv("RCT_data.csv")
+```
+
+### 2.1.2) Use `describe()` from the `psych` package to summarize dataframe `RCT_DF`
+
+```{r}
+library(psych)
+describe(RCT_DF)
+```
+
+*How many users (consumers) are represented in the study?*
+
+418172
+
+*What fraction of users are treated?  What fraction are female?*
+
+50% of users are treated. 41% are females.
+
+*What is the are average sales per user?  What does the median value tell us?*
+
+0.87 units. Median 0 tells the sales occur very rarely.
+
+### 2.1.3) How many users are in the test and control conditions?
+
+```{r}
+sum(RCT_DF$treatment == 0)
+
+sum(RCT_DF$treatment == 1)
+```
+
+Control conditions = 208866 users and Test conditions = 209306 users
+
+
+## 2.2) Randomization checks
+
+Next we perform a series of tests to verify that the experiment has been properly randomized.  In this case, we have two pre-treatment observed variables: `past_sales` and `female`.
+
+### 2.2.1) Randomization check of `past_sales`
+
+First, compare the mean of `past_sales` across treatment groups.  
+```{r}
+trt<- subset(RCT_DF, treatment=1)
+mean(trt$past_sales)
+ctrl<- subset(RCT_DF, treatment=0)
+mean(ctrl$past_sales)
+```
+
+*How similar are the means across treatment groups?*
+
+They are identical.
+
+Next, compare the distributions (histograms) of `past_sales` for the treament group with the control group.
+
+```{r}
+hist(trt$past_sales)
+hist(ctrl$past_sales)
+
+```
+
+*Do the histograms appear similar?*
+
+Yes.
+
+Finally, perform a formal test of the difference in means of `past_sales` across treatment groups.  
+
+Hint: recall that `t.test(y~ind_subpop)` can be used to test if the means of `y` are different across the subsets of observations indicated by the binary variable `ind_subpop`.
+
+```{r}
+t.test(past_sales ~ treatment, data= RCT_DF)
+```
+
+*Are the means of `past_sales` statistically different at the 95% confidence level?*
+
+Yes.
+
+### 2.2.2) Randomization check of `female`
+
+First, compare the mean of `female` across treatment groups.  
+```{r}
+trt1<- subset(RCT_DF, female=1)
+mean(trt$past_sales)
+ctrl1<- subset(RCT_DF, female=0)
+mean(ctrl$past_sales)
+```
+
+*How similar are the means across treatment groups?*
+
+They are identical.
+
+Next, compare the distributions (histograms) of `female` for the treament group with the control group.
+
+```{r}
+hist(trt1$female)
+hist(ctrl1$female)
+```
+
+*Do the histograms appear similar?*
+
+Yes.
+
+Finally, perform a formal test of the difference in means of `female` across treatment groups.  
+
+
+```{r}
+t.test(female ~ treatment, data= RCT_DF)
+
+```
+
+*Are the means of `female` statistically different at the 95% confidence level?*
+
+Yes.
+
+
+## 2.3) Average treatment effect (ATE) estimation
+
+### 2.3.1) ATE estimation "by hand" (difference in means)
+
+Calculate the ATE as: mean of the outcome (`sales`) in the treatment group, minus the mean of the outcome in the control group.
+
+```{r}
+mean(RCT_DF$sales[RCT_DF$treatment==1]) - mean(RCT_DF$sales[RCT_DF$treatment==0])
+
+```
+
+### 2.3.2) ATE estimation by regression
+
+Now calculate the ATE using regression.  
+```{r}
+lm1 = lm(sales ~ treatment, data = RCT_DF)
+summary(lm1)
+```
+
+*Do your estimates of the ATE match?*
+
+Yes.
+
+*What is the advantage of using regression to calculate the ATE?*
+
+Standard error comes directly.
+
+## 2.4) Return on investment (ROI) calculation
+
+Here we demonstrate how to use the treatment effect estimate to evaluate the profiability of the ad campaign. 
+
+To perform the ROI calculation, we need additional information:
+
+1. Average profit margin on products sold = 40%
+2. Average cost for ad campaign impressions = \$5 CPM (\$5 per 1000 impressions)
+
+### 2.4.1) Calculate incremental revenue
+
+The first step to calculating ROI is to calculate the incremental revenue from the campaign.  Since the treatment effect estimate measures the incremental effect of the campaign on sales, we can estimate the incremental revenue as:
+
+incremental revenue = (# of treated users)*(treatment effect estimate)
+
+Calculate the incremental revenue -- store the result as `inc_rev` and print its value:
+
+```{r}
+
+num = sum(RCT_DF$treatment)
+ate = as.numeric(lm1$coefficients["treatment"])
+inc_rev = num * ate
+inc_rev
+```
+### 2.4.2) Calculate incremental profit
+
+To assess the financial return of the campaign, we need to know the incremental profit of the campaign.  So, we need to translate incremental revenues to incremental profits.  We can do this using the average profit margin, which tells us how much profit the firm gets (on average) for every $1 of revenue.  That is:
+
+incremental profit = (incremental revenue)*(profit margin)
+
+Calculate the incremental profit -- store the result as `inc_pft` and print its value:
+
+```{r}
+
+inc_pft = inc_rev*0.40
+inc_pft
+```
+
+### 2.4.3) Calculate campaign costs
+
+Next, we need to calculate the cost of running the campaign.  We are given the cost per (1000) impressions as \$5.  The campaign cost is then given by:
+
+campaign cost = (# impressions)/1000*CPM
+
+Calculate the campaign cost -- store the result as `cost` and print its value:
+
+```{r}
+cost = (418172)/1000*5
+cost
+```
+
+### 2.4.4) Calculate ROI
+
+Finally, calculate ROI as:
+
+100*(inc_pft-cost)/cost
+
+and print the result
+
+```{r}
+
+ROI = 100*(inc_pft-cost)/cost
+ROI
+```
+
+*Was the campaign profitable?*
+
+Yes.
+
+*How do we interpret the ROI estimate?*
+
+For every dollar invested, we get $1.32 return.
+
+## 2.5) Adding pre-treatment controls
+
+For a properly designed RCT, it is unnecessary to control for pre-treatment variables (such as `past_sales` and `female`).  However, including such factors in the ATE regression can improve the precision of our ATE estimate.  
+
+Estimate the ATE using a regression that include `past_sales` and `female`.
+
+```{r}
+lm2 <- lm(sales ~ treatment + past_sales + female, data = RCT_DF)
+summary(lm2)
+```
+
+*Is the ATE estimate here statisticallly consistent with the prior estimate (without controls)?*
+
+Yes.
+
+*Is the standard error of the ATE estimate smaller than the prior estimate (without controls)?*
+
+Yes. But not much in this case.
+
+# 3) Average treatment effect (ATE) estimation with observational panel data
+
+Here we will analyze the effectiveness of an end-aisle promotional display for laundry detergent.  The objective is to measure the sales lift from the more prominent placement of the product in grocery stores.
+
+A field experiment was conducted, where stores were randomly assigned to receive the treatment (promotional display) or not.  Store sales (and other varibles) were observed for both treatment and control groups for 5 months (Jan-May) before the experiment began, and for the 7 months (Jun-Dec) that the end-aisle displays were placed in stores -- i.e., the post-treament period spans months 6-12 (Jun-Dec).
+
+
+Though stores are randomly assigned for treatment, many aspects of the environment are not controlled (local store pricing policy, other store promotional activity, etc.).  In such cases, we have omitted variable concerns, and should implement strong controls (e.g. panel fixed effects) to reduce omitted variable bias when we estimate the ATE.
+
+The field study dataset is “DiD_data.csv” (Canvas). The data contain the following variables:  
+
+-------------   -----------------------------------------------------
+`store`         Store id number
+`month`         Month number
+`sales`         Tide 128oz laundry detergent: unit sales
+`price`         Tide 128oz laundry detergent: price ($)
+`treatment`     = 1 if the store is in the treatment (promotion) condition
+`post`          = 1 if the month if the treatment has been appilied
+-------------   -----------------------------------------------------
+
+Load in the data file ("DiD_data.csv") into a dataframe called `DiD_DF`.
+
+```{r}
+
+DiD_DF <- read.csv("DiD_data.csv")
+
+```
+
+Next, create a binary numeric variable that defines the post-treatment period, called `post`, and insert it into the dataframe `DiD_DF`.
+```{r}
+DiD_DF$post <- as.numeric(DiD_DF$month >=6)
+```
+
+## 3.1) Basic Differences in Differences
+
+Basic differences in differences tests pre/post treatment differences in outcomes across the treatment and control groups (hence the name).  The simplest way to obtain the treatment effect estimate is through a regression model.  In the regression setup, the treatment effect is associated with the interaction of the treatment group indicator and the post-treatment time indicator.
+
+Estimate the basic DiD model, i.e., regress `sales` on `treatment`, `post`, and their interaction. 
+
+```{r}
+did1 <- lm(sales ~ treatment + post+ treatment:post, data = DiD_DF)
+summary(did1)
+```
+
+*What is your ATE estimate (number and interpretation)?  What is its standard error?*
+
+9.788  units. Standard error is 1.731
+
+## 3.2) Differences in Differences with full panel controls
+
+The basic Diff-in-Diff model controls for selection bias by allowing the treatment/control groups to have different mean outcomes (though the `treatment` parameter estimate).  By replacing the `treatment` variable with individual fixed effects, we obtain much stronger (individual-specific) controls for omitted variables that could influence the ATE estimate.  Similarly, replacing the `post` variable with time (month) fixed effects removes many omitted factors associated with time periods beyond the simple pre/post distinction.
+
+Estimate the differences in differences model with full panel controls -- i.e., regress sales on the `treatment`X`post` interaction, price, and *include both store and time fixed effects* (I recommend using `plm()` for this, but `lm()` will work). 
+
+```{r}
+library(plm)
+did2 = plm(sales~treatment:post + price + factor(month), data=DiD_DF,
+              index=c("store","month"), model="within", effect="individual")
+summary(did2)
+```
+
+*Is the ATE estimate here statisticallly consistent with the prior estimate (without panel fixed effects)?*
+
+9.29447
+
+*Is the ATE estimate here more precise than the prior estimate (without panel fixed effects)?*
+
+Yes.
+
+
+
+## 3.3) Prediction with plm()
+
+Here I demonstrate how to do prediction with `plm()`.  
+
+
+The code below demonstrates the equivalence of model predictions using `plm()` and `lm()` with individual fixed effects.  It also shows that the R^2^ values are equivalent when we include fixed effects in the `plm()` prediction.
+
+
+```{r}
+library(plm)
+# load the data
+DiD_DF = read.csv("DiD_data.csv")
+DiD_DF$post = as.numeric(DiD_DF$month>=6)
+
+# estimate the DiD model with panel fixed effects, using plm()
+did2 = plm(sales~treatment:post + price + factor(month), data=DiD_DF,
+              index=c("store","month"), model="within", effect="individual")
+
+# extract individual fixed effects from plm, put in dataframe 
+# first column contains individual id's - named store to merge with DiD_DF
+fe_DF = data.frame(store = names(fixef(did2)), fe = as.numeric(fixef(did2)))
+
+# match fixed effect (by store id)  -- afterward, fixed effects are matched to observations
+merged_DF = merge(DiD_DF,fe_DF, by="store")
+
+# get the model (X) matrix: use same formula as used to estimate the plm() model (here, did2)
+X = model.matrix(sales~treatment:post + price + factor(month), data=DiD_DF)
+
+# full prediction using matrix algebra
+# note: [,-1] excludes first column (intercept) from entering prediction (replaced by fixed effects)
+did2.yhat = as.numeric(merged_DF$fe + X[,-1]%*% did2$coefficients)
+
+# compute R^2 with fixed effects included
+print("plm model with fixed effects R^2 :")
+cor(did2.yhat,DiD_DF$sales)^2
+
+
+# estimate comparable lm() model
+did3 = lm(sales~treatment:post + price + factor(month) + factor(store), data=DiD_DF)
+# print the R^2 value
+did3.sum = summary(did3)
+print("lm model with fixed effects R^2:")
+did3.sum$r.squared[1]
+# predict values
+did3.yhat = predict(did3)
+
+# compare plm() predictions to lm() predictions
+print("test that lm() and plm() predictions are equal:")
+all.equal(did2.yhat,did3.yhat,check.names=FALSE)
+```
